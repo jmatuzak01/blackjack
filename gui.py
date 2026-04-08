@@ -29,9 +29,10 @@ class BlackJackGUI:
     #  Deck                                                   
     # ------------------------------------------------------------------ 
     def make_deck(self):
+        self.deck = []
         suits = ["hearts", "diamonds", "clubs", "spades"]
         rank = range(2, 15) # 11=Jack, 12=Queen, 13=King, 14=Ace
-        for _ in range(6):  # Increase to 6 for a shoe of 6 decks  
+        for _ in range(6):  # Increase to 6 for a shoe of 6 decks
             for suit in suits:
                 for r in rank:
                     self.deck.append(f"{r}_of_{suit}")
@@ -52,17 +53,8 @@ class BlackJackGUI:
                 aces += 1
             else:
                 value += rank
-        if aces > 1:
-            temp_value = value + 11 + (aces - 1)  # One Ace as 11, rest as 1
-            if temp_value > 21:
-                value += aces  # All Aces as 1
-            else:
-                value += 11 + (aces - 1)  # One Ace as 11, rest as 1
-        elif aces == 1:
-            if value + 11 > 21:
-                value += 1  # Ace as 1
-            else:
-                value += 11  # Ace as 11
+        for _ in range(aces):
+            value += 11 if value + 11 <= 21 else 1
         return value
     
     def check_for_bust(self, hand):
@@ -70,8 +62,7 @@ class BlackJackGUI:
             self.render_hand(self.dealer_canvas, self.dealer_hand, hide_second=False)
             self.player_score_label.config(text=f"Your Score: {self.calculate_hand_value(self.player_hand)}")
             self.deal_score_label.config(text=f"Dealer's Score: {self.calculate_hand_value(self.dealer_hand)}")
-            self.hit_button.config(state=tk.DISABLED)
-            self.stand_button.config(state=tk.DISABLED)
+            self._set_button_states(hit=tk.DISABLED, stand=tk.DISABLED, deal=tk.NORMAL)
             return True
         return False
     
@@ -92,48 +83,33 @@ class BlackJackGUI:
             self.round_result_label.config(text="Round Result:\nDealer wins!")
 
     def check_hand_status(self):
+        player_blackjack = self.check_blackjack(self.player_hand)
+        dealer_blackjack = self.check_blackjack(self.dealer_hand)
         #Both have blackjack
-        if self.check_blackjack(self.dealer_hand) and self.check_blackjack(self.player_hand):
-            self.round_result_label.config(text="Round Result:\nStand-off. Bets returned!")
-            self.hit_button.config(state=tk.DISABLED)
-            self.stand_button.config(state=tk.DISABLED)
-            self.render_hand(self.dealer_canvas, self.dealer_hand, hide_second=False)
+        if dealer_blackjack and player_blackjack:
+            self._end_round("Stand-off. Bets returned!")
         #Dealer has blackjack
-        elif self.check_blackjack(self.dealer_hand):
-            self.round_result_label.config(text="Round Result:\nDealer has Blackjack! You lose.")
-            self.hit_button.config(state=tk.DISABLED)
-            self.stand_button.config(state=tk.DISABLED)
-            self.render_hand(self.dealer_canvas, self.dealer_hand, hide_second=False)
+        elif dealer_blackjack:
+            self._end_round("Dealer has Blackjack! You lose.")
         #Player has blackjack
-        elif self.check_blackjack(self.player_hand):
-            self.round_result_label.config(text="Round Result:\nBlackjack! You win x1.5 your bet!")
-            self.hit_button.config(state=tk.DISABLED)
-            self.stand_button.config(state=tk.DISABLED)
-            self.render_hand(self.dealer_canvas, self.dealer_hand, hide_second=False)
+        elif player_blackjack:
+            self._end_round("Blackjack! You win x1.5 your bet!")
         #Nobody has blackjack, check for busts
         elif self.check_for_bust(self.player_hand):
-            self.round_result_label.config(text="Round Result:\nYou Busted!")
-            self.hit_button.config(state=tk.DISABLED)
-            self.stand_button.config(state=tk.DISABLED)
-            self.deal_button.config(state=tk.NORMAL)
+            self._end_round("You Busted!")
         elif self.check_for_bust(self.dealer_hand):
-            self.round_result_label.config(text="Round Result:\nDealer Busted!")
-            self.hit_button.config(state=tk.DISABLED)
-            self.stand_button.config(state=tk.DISABLED)
-            self.deal_button.config(state=tk.NORMAL)
+            self._end_round("Dealer Busted!")
         #Auto-stand on 21
         elif self.calculate_hand_value(self.player_hand) == 21:
             self._stand()
         else:
-            self.hit_button.config(state=tk.NORMAL)
-            self.stand_button.config(state=tk.NORMAL)
-            self.deal_button.config(state=tk.DISABLED)
+            self._set_button_states(deal=tk.DISABLED, hit=tk.NORMAL, stand=tk.NORMAL)
+
     def what_does_the_dealer_have(self):
         if int(self.dealer_hand[0].split("_")[0]) == 14:
             self.deal_score_label.config(text="Dealer's Score: 1/11 + ?")
         else:
             self.deal_score_label.config(text=f"Dealer's Score: {self.calculate_hand_value([self.dealer_hand[0]])} + ?")
-
     # ------------------------------------------------------------------
     #  Image loading                                                    
     # ------------------------------------------------------------------ 
@@ -148,16 +124,9 @@ class BlackJackGUI:
 
         self.card_images[card_string] = photo  # Prevent garbage collection
         return photo 
-           
-    def draw_card_back(self, canvas, x, y):
-        #Draw a face-down card
-        photo = self.get_card_image("card back black")  # Expects ./Card_Images/back.png
-        canvas.create_image(x, y, anchor="nw", image=photo)
-
     # ------------------------------------------------------------------
     #  Game actions/Commands                                                   
-    # ------------------------------------------------------------------
-    
+    # ------------------------------------------------------------------ 
     def _deal(self):
         #Reset hands and deck for a new round
         self.player_hand = []
@@ -167,10 +136,6 @@ class BlackJackGUI:
         self.dealer_hand.append(self.draw_from_deck())
         self.player_hand.append(self.draw_from_deck())
         self.dealer_hand.append(self.draw_from_deck())
-
-        self.hit_button.config(state=tk.NORMAL)
-        self.stand_button.config(state=tk.NORMAL)
-
         # Render — dealer's second card is hidden
         self.render_hand(self.player_canvas, self.player_hand)
         self.render_hand(self.dealer_canvas, self.dealer_hand, hide_second=True)
@@ -194,9 +159,7 @@ class BlackJackGUI:
     def _stand(self):
         #Player stands — reveal dealer's hidden card
         self.render_hand(self.dealer_canvas, self.dealer_hand, hide_second=False)
-        self.hit_button.config(state=tk.DISABLED)
-        self.stand_button.config(state=tk.DISABLED)
-        self.deal_button.config(state=tk.NORMAL)
+        self._set_button_states(hit=tk.DISABLED, stand=tk.DISABLED, deal=tk.NORMAL)
 
         while self.calculate_hand_value(self.dealer_hand) < 17:
             card = self.draw_from_deck()
@@ -208,6 +171,17 @@ class BlackJackGUI:
             return
         self.who_won()
         self.deal_score_label.config(text=f"Dealer's Score: {self.calculate_hand_value(self.dealer_hand)}")
+
+    def _set_button_states(self, hit, stand, deal):
+        self.deal_button.config(state=deal)
+        self.hit_button.config(state=hit)
+        self.stand_button.config(state=stand)
+
+    def _end_round(self, message):
+        self.round_result_label.config(text=f"Round Result:\n{message}")
+        self.render_hand(self.dealer_canvas, self.dealer_hand, hide_second=False)
+        self.deal_score_label.config(text=f"Dealer's Score: {self.calculate_hand_value(self.dealer_hand)}")
+        self._set_button_states(hit=tk.DISABLED, stand=tk.DISABLED, deal=tk.NORMAL)
 
     # ------------------------------------------------------------------
     #  Drawing cards and hands                                                   
