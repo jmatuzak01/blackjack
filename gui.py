@@ -1,5 +1,3 @@
-#from tkinter import *
-#from tkinter import ttk
 import tkinter as tk
 import random
 from PIL import Image, ImageTk
@@ -31,11 +29,13 @@ class BlackJackGUI:
     def make_deck(self):
         self.deck = []
         suits = ["hearts", "diamonds", "clubs", "spades"]
+        self.deck = ["14_of_hearts","14_of_diamonds","14_of_clubs","14_of_spades","11_of_hearts","11_of_diamonds","11_of_clubs","11_of_spades","14_of_hearts","14_of_diamonds","14_of_clubs","14_of_spades","11_of_hearts","11_of_diamonds","11_of_clubs","11_of_spades"]
         rank = range(2, 15) # 11=Jack, 12=Queen, 13=King, 14=Ace
         for _ in range(6):  # Increase to 6 for a shoe of 6 decks
             for suit in suits:
                 for r in rank:
-                    self.deck.append(f"{r}_of_{suit}")
+                    pass
+                    #self.deck.append(f"{r}_of_{suit}")
 
     def draw_from_deck(self):
         card = random.choice(self.deck)
@@ -53,8 +53,17 @@ class BlackJackGUI:
                 aces += 1
             else:
                 value += rank
-        for _ in range(aces):
-            value += 11 if value + 11 <= 21 else 1
+        if aces > 1:
+            temp_value = value + 11 + (aces - 1)  # Count one Ace as 11 and the rest as 1
+            if temp_value > 21:
+                value += aces  # Count all Aces as 1
+            else:
+                value += 11 + (aces - 1)  # Count one Ace as 11 and the rest as 1
+        elif aces == 1:
+            if value + 11 > 21:
+                value += 1  # Count Ace as 1
+            else:
+                value += 11  # Count Ace as 11
         return value
     
     def check_for_bust(self, hand):
@@ -110,6 +119,15 @@ class BlackJackGUI:
             self.deal_score_label.config(text="Dealer's Score: 1/11 + ?")
         else:
             self.deal_score_label.config(text=f"Dealer's Score: {self.calculate_hand_value([self.dealer_hand[0]])} + ?")
+
+    # ------------------------------------------------------------------
+    #  Bet Validation and Management                                                    
+    # ------------------------------------------------------------------ 
+    def validate_bet(self, bet):
+        if bet.isdigit() or bet == "":
+            return True
+        return False
+    
     # ------------------------------------------------------------------
     #  Image loading                                                    
     # ------------------------------------------------------------------ 
@@ -139,8 +157,7 @@ class BlackJackGUI:
         # Render — dealer's second card is hidden
         self.render_hand(self.player_canvas, self.player_hand)
         self.render_hand(self.dealer_canvas, self.dealer_hand, hide_second=True)
-       
-        #self.deal_score_label.config(text="")
+
         self.round_result_label.config(text="")
         self.player_score_label.config(text=f"Your Score: {self.calculate_hand_value(self.player_hand)}")
         self.root.title(f"BlackJack Game — {len(self.deck)} cards remaining") #remove once final game is ready
