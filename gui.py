@@ -6,20 +6,28 @@ class BlackJackGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("BlackJack Game")
-        self.root.geometry("800x600")
+        height:int = 800
+        width:int = 600
+        x = (self.root.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.root.winfo_screenheight() // 2) - (height // 2)
+        self.root.geometry(f"{height}x{width}+{x}+{y}")
         self.root.resizable(width=False, height=False)
         self.root.configure(bg="#076324") # casino green background
-        self.font = "Courier New"
-        self.btn_font_size = 12
-        self.card_font_size = 11
+        self.font:str = "Courier New"
+        self.btn_font_size:int = 12
+        self.card_font_size:int = 11
         self.background_color = "#076324"
-        self.card_width = 70
-        self.card_height = 100
+        self.card_width:int = 70
+        self.card_height:int = 100
 
-        self.card_images = {}  # Cache for card images to prevent garbage collection
-        self.deck = []  # Will hold the current deck of cards
-        self.player_hand = []  # List to hold player's cards
-        self.dealer_hand = []  # List to hold dealer's cards
+        self.card_images:dict = {}  # Cache for card images to prevent garbage collection
+        self.deck:list = []  # Will hold the current deck of cards
+        self.player_hand:list = []  # List to hold player's cards
+        self.dealer_hand:list = []  # List to hold dealer's cards
+
+        self.balance:int = 10000  # Starting balance for betting
+        self.player_bet:int = 0  # Current bet amount
+        self.player_winnings:int = 0  # Amount won from round
 
         self.make_deck()  # Initialize the deck of cards
         self._build_layout()
@@ -28,16 +36,20 @@ class BlackJackGUI:
     # ------------------------------------------------------------------ 
     def make_deck(self):
         self.deck = []
+        """self.deck = [
+            "14_of_hearts", "14_of_diamonds", "14_of_clubs", "14_of_spades",
+            "11_of_hearts", "11_of_diamonds", "11_of_clubs", "11_of_spades"
+        ] * 6  # Start with Aces for testing"""
         suits = ["hearts", "diamonds", "clubs", "spades"]
-        self.deck = ["14_of_hearts","14_of_diamonds","14_of_clubs","14_of_spades","11_of_hearts","11_of_diamonds","11_of_clubs","11_of_spades","14_of_hearts","14_of_diamonds","14_of_clubs","14_of_spades","11_of_hearts","11_of_diamonds","11_of_clubs","11_of_spades"]
         rank = range(2, 15) # 11=Jack, 12=Queen, 13=King, 14=Ace
         for _ in range(6):  # Increase to 6 for a shoe of 6 decks
             for suit in suits:
                 for r in rank:
-                    pass
-                    #self.deck.append(f"{r}_of_{suit}")
+                    self.deck.append(f"{r}_of_{suit}")
 
     def draw_from_deck(self):
+        if len(self.deck) == 0:
+            self.make_deck()  # Reshuffle if deck is empty
         card = random.choice(self.deck)
         self.deck.remove(card)
         return card
@@ -71,7 +83,7 @@ class BlackJackGUI:
             self.render_hand(self.dealer_canvas, self.dealer_hand, hide_second=False)
             self.player_score_label.config(text=f"Your Score: {self.calculate_hand_value(self.player_hand)}")
             self.deal_score_label.config(text=f"Dealer's Score: {self.calculate_hand_value(self.dealer_hand)}")
-            self._set_button_states(hit=tk.DISABLED, stand=tk.DISABLED, deal=tk.NORMAL)
+            self._set_button_states(hit=tk.DISABLED, stand=tk.DISABLED, bet=tk.NORMAL)
             return True
         return False
     
@@ -86,33 +98,51 @@ class BlackJackGUI:
 
         if player_score > dealer_score:
             self.round_result_label.config(text="Round Result:\nYou win!")
+            self.balance += self.player_bet  # Add winnings to balance
         elif dealer_score == player_score:
             self.round_result_label.config(text="Round Result:\nIt's a Tie!")
+            self.player_bet = 0  # Reset bet for next round
         else:
             self.round_result_label.config(text="Round Result:\nDealer wins!")
+            self.balance -= self.player_bet  # Deduct losses from balance
+        self.balance_label.config(text=f"Balance: ${self.balance}")
 
     def check_hand_status(self):
         player_blackjack = self.check_blackjack(self.player_hand)
         dealer_blackjack = self.check_blackjack(self.dealer_hand)
-        #Both have blackjack
+
+        print(f"Player hand: {self.player_hand}")
+        print(f"Dealer hand: {self.dealer_hand}")
+        print(f"Player value: {self.calculate_hand_value(self.player_hand)}")
+        print(f"Dealer value: {self.calculate_hand_value(self.dealer_hand)}")
+        print(f"Player BJ: {player_blackjack}, Dealer BJ: {dealer_blackjack}")
+
         if dealer_blackjack and player_blackjack:
+            print("Branch: both blackjack")
+            self.player_bet = 0
             self._end_round("Stand-off. Bets returned!")
-        #Dealer has blackjack
         elif dealer_blackjack:
+            print("Branch: dealer blackjack")
+            self.balance -= self.player_bet
             self._end_round("Dealer has Blackjack! You lose.")
-        #Player has blackjack
         elif player_blackjack:
-            self._end_round("Blackjack! You win x1.5 your bet!")
-        #Nobody has blackjack, check for busts
+            print("Branch: player blackjack")
+            self.balance += int(self.player_bet * 1.5)
+            self._end_round(f"Blackjack! You win x1.5 ({int(self.player_bet * 1.5)}) your bet!")
         elif self.check_for_bust(self.player_hand):
+            print("Branch: player bust")
+            self.balance -= self.player_bet
             self._end_round("You Busted!")
         elif self.check_for_bust(self.dealer_hand):
+            print("Branch: dealer bust")
+            self.balance += self.player_bet
             self._end_round("Dealer Busted!")
-        #Auto-stand on 21
         elif self.calculate_hand_value(self.player_hand) == 21:
+            print("Branch: auto-stand")
             self._stand()
         else:
-            self._set_button_states(deal=tk.DISABLED, hit=tk.NORMAL, stand=tk.NORMAL)
+            print("Branch: normal play - enabling hit/stand")
+            self._set_button_states(hit=tk.NORMAL, stand=tk.NORMAL, bet=tk.DISABLED)
 
     def what_does_the_dealer_have(self):
         if int(self.dealer_hand[0].split("_")[0]) == 14:
@@ -121,7 +151,7 @@ class BlackJackGUI:
             self.deal_score_label.config(text=f"Dealer's Score: {self.calculate_hand_value([self.dealer_hand[0]])} + ?")
 
     # ------------------------------------------------------------------
-    #  Bet Validation and Management                                                    
+    #  Bet Validation                                             
     # ------------------------------------------------------------------ 
     def validate_bet(self, bet):
         if bet.isdigit() or bet == "":
@@ -133,6 +163,8 @@ class BlackJackGUI:
     # ------------------------------------------------------------------ 
     def get_card_image(self, card_string):
         #Load and return a PhotoImage for the given card string
+        #The cards must be named like "2_of_hearts.png", "11_of_clubs.png", etc. in the Card_Images folder
+        #11=Jack, 12=Queen, 13=King, 14=Ace
         if card_string in self.card_images:
             return self.card_images[card_string]
 
@@ -176,7 +208,7 @@ class BlackJackGUI:
     def _stand(self):
         #Player stands — reveal dealer's hidden card
         self.render_hand(self.dealer_canvas, self.dealer_hand, hide_second=False)
-        self._set_button_states(hit=tk.DISABLED, stand=tk.DISABLED, deal=tk.NORMAL)
+        self._set_button_states(hit=tk.DISABLED, stand=tk.DISABLED, bet=tk.NORMAL)
 
         while self.calculate_hand_value(self.dealer_hand) < 17:
             card = self.draw_from_deck()
@@ -185,20 +217,39 @@ class BlackJackGUI:
         if self.check_for_bust(self.dealer_hand):
             self.round_result_label.config(text="Round Result:\nDealer Busted! You win!")
             self.deal_score_label.config(text=f"Dealer's Score: {self.calculate_hand_value(self.dealer_hand)}")
+            self.balance += self.player_bet  # Add winnings to balance
+            self.balance_label.config(text=f"Balance: ${self.balance}")
             return
         self.who_won()
         self.deal_score_label.config(text=f"Dealer's Score: {self.calculate_hand_value(self.dealer_hand)}")
 
-    def _set_button_states(self, hit, stand, deal):
-        self.deal_button.config(state=deal)
+    def _set_button_states(self, hit, stand, bet):
         self.hit_button.config(state=hit)
         self.stand_button.config(state=stand)
+        self.place_bet_button.config(state=bet)
 
     def _end_round(self, message):
         self.round_result_label.config(text=f"Round Result:\n{message}")
         self.render_hand(self.dealer_canvas, self.dealer_hand, hide_second=False)
         self.deal_score_label.config(text=f"Dealer's Score: {self.calculate_hand_value(self.dealer_hand)}")
-        self._set_button_states(hit=tk.DISABLED, stand=tk.DISABLED, deal=tk.NORMAL)
+        self._set_button_states(hit=tk.DISABLED, stand=tk.DISABLED, bet=tk.NORMAL)
+        self.balance_label.config(text=f"Balance: ${self.balance}")
+        self.bet_message_label.config(text="")
+
+    def _place_bet(self):
+        try:
+            bet = int(self.bet_entry.get())
+            if bet <= 0:
+                self.bet_message_label.config(text="Bet must be greater than 0.")
+            elif bet > self.balance:
+                self.bet_message_label.config(text="Bet exceeds your balance.")
+            else:
+                self.player_bet = bet
+                self.bet_message_label.config(text=f"Bet of ${bet} placed.")
+                self._deal()  # Start the round immediately after placing a bet
+        except ValueError:
+            self.bet_message_label.config(text="Invalid bet amount.")
+            
 
     # ------------------------------------------------------------------
     #  Drawing cards and hands                                                   
@@ -289,18 +340,17 @@ class BlackJackGUI:
         )
         self.player_canvas.pack()
 
+        self.round_result_label = tk.Label(
+            self.player_frame,
+            font=(self.font, 14, "bold"),
+            bg=self.background_color,
+            fg="white"
+        )
+        self.round_result_label.pack()
+
         #Button frame
         self.button_frame = tk.Frame(self.root, bg=self.background_color)
         self.button_frame.pack(pady=10)
-
-        self.deal_button = tk.Button(
-            self.button_frame,
-            text="Deal",
-            font=(self.font, self.btn_font_size),
-            width=10,
-            command=self._deal
-        )
-        self.deal_button.grid(row=0, column=0, padx=10)
 
         self.hit_button = tk.Button(
             self.button_frame,
@@ -310,7 +360,7 @@ class BlackJackGUI:
             state=tk.DISABLED,  # Greyed out until game starts
             command=self._hit
         )
-        self.hit_button.grid(row=0, column=1, padx=10)
+        self.hit_button.grid(row=0, column=0, padx=10)
 
         self.stand_button = tk.Button(
             self.button_frame,
@@ -320,17 +370,53 @@ class BlackJackGUI:
             state=tk.DISABLED,
             command=self._stand
         )
-        self.stand_button.grid(row=0, column=2, padx=10)
+        self.stand_button.grid(row=0, column=1, padx=10)
 
 
         #Betting Frame
         self.betting_frame = tk.Frame(self.root, bg=self.background_color)
-        self.betting_frame.pack(pady=20)
-
-        self.round_result_label = tk.Label(
+        self.betting_frame.place(x=20, y=450)
+        self.balance_label = tk.Label(
             self.betting_frame,
+            text=f"Balance: ${self.balance}",
             font=(self.font, 14, "bold"),
             bg=self.background_color,
             fg="white"
         )
-        self.round_result_label.pack()
+        self.balance_label.grid(row=0, column=0, columnspan=2, sticky="w",pady=5)
+
+        self.bet_label = tk.Label(
+            self.betting_frame,
+            text="Bet Amount:",
+            font=(self.font, 12),
+            bg=self.background_color,
+            fg="white"
+        )
+        self.bet_label.grid(row=1, column=0, sticky="w")
+
+        self.bet_entry = tk.Entry(
+            self.betting_frame,
+            font=(self.font, 12),
+            width=10,
+            validate="key",
+            validatecommand=(self.root.register(self.validate_bet), "%P")
+        )
+        self.bet_entry.grid(row=1, column=1, sticky="w")
+
+        self.place_bet_button = tk.Button(
+            self.betting_frame,
+            text="Place Bet",
+            font=(self.font, self.btn_font_size),
+            width=10,
+            command=self._place_bet
+        )
+        self.place_bet_button.grid(row=2, column=0, columnspan=2, pady=5, sticky="w")
+
+        self.bet_message_label = tk.Label(
+            self.betting_frame,
+            text="",
+            font=(self.font, 12, "bold"),
+            bg=self.background_color,
+            fg="white"
+        )
+        self.bet_message_label.grid(row=4, column=0, sticky="w")
