@@ -1,6 +1,7 @@
 import tkinter as tk
 import random
 from PIL import Image, ImageTk
+from test_deal_cards.test_decks import test_decks
 
 class BlackJackGUI:
     def __init__(self, root):
@@ -36,16 +37,14 @@ class BlackJackGUI:
     # ------------------------------------------------------------------ 
     def make_deck(self):
         self.deck = []
-        """self.deck = [
-            "14_of_hearts", "14_of_diamonds", "14_of_clubs", "14_of_spades",
-            "11_of_hearts", "11_of_diamonds", "11_of_clubs", "11_of_spades"
-        ] * 6  # Start with Aces for testing"""
+        self.deck = test_decks().deck_82
         suits = ["hearts", "diamonds", "clubs", "spades"]
         rank = range(2, 15) # 11=Jack, 12=Queen, 13=King, 14=Ace
         for _ in range(6):  # Increase to 6 for a shoe of 6 decks
             for suit in suits:
                 for r in rank:
-                    self.deck.append(f"{r}_of_{suit}")
+                    #self.deck.append(f"{r}_of_{suit}")
+                    pass
 
     def draw_from_deck(self):
         if len(self.deck) == 0:
@@ -140,6 +139,10 @@ class BlackJackGUI:
         elif self.calculate_hand_value(self.player_hand) == 21:
             print("Branch: auto-stand")
             self._stand()
+        #if original two cards are 9,10,11 offer double down
+        elif len(self.player_hand) == 2 and self.calculate_hand_value(self.player_hand) in [9,10,11]:
+            print("Branch: double down option - enabling double down")
+            self.double_down_button.grid(row=0, column=2, padx=10)  # Show double down button
         else:
             print("Branch: normal play - enabling hit/stand")
             self._set_button_states(hit=tk.NORMAL, stand=tk.NORMAL, bet=tk.DISABLED)
@@ -249,7 +252,13 @@ class BlackJackGUI:
                 self._deal()  # Start the round immediately after placing a bet
         except ValueError:
             self.bet_message_label.config(text="Invalid bet amount.")
-            
+    
+    def _double_down(self):
+        self.player_bet *= 2
+        self.bet_message_label.config(text=f"Bet doubled to ${self.player_bet}")
+        self.double_down_button.grid_forget()
+        self._hit()  # Player gets one more card
+        self._stand()
 
     # ------------------------------------------------------------------
     #  Drawing cards and hands                                                   
@@ -371,6 +380,16 @@ class BlackJackGUI:
             command=self._stand
         )
         self.stand_button.grid(row=0, column=1, padx=10)
+
+        self.double_down_button = tk.Button(
+            self.button_frame,
+            text="Double Down",
+            font=(self.font, self.btn_font_size),
+            width=12,
+            command=self._double_down
+        )
+        self.double_down_button.grid(row=0, column=2, padx=10)
+        self.double_down_button.grid_forget()  # Hide double down button initially
 
 
         #Betting Frame
