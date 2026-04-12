@@ -109,6 +109,8 @@ class BlackJackGUI:
     def check_hand_status(self):
         player_blackjack = self.check_blackjack(self.player_hand)
         dealer_blackjack = self.check_blackjack(self.dealer_hand)
+        player_hand_value = self.calculate_hand_value(self.player_hand)
+        player_hand_len = len(self.player_hand)
 
         print(f"Player hand: {self.player_hand}")
         print(f"Dealer hand: {self.dealer_hand}")
@@ -140,7 +142,7 @@ class BlackJackGUI:
             print("Branch: auto-stand")
             self._stand()
         #if original two cards are 9,10,11 offer double down
-        elif len(self.player_hand) == 2 and self.calculate_hand_value(self.player_hand) in [9,10,11]:
+        elif player_hand_len == 2 and player_hand_value in [9,10,11] and self.player_bet * 2 <= self.balance:
             print("Branch: double down option - enabling double down")
             self.double_down_button.grid(row=0, column=2, padx=10)  # Show double down button
         else:
